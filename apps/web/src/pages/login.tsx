@@ -245,7 +245,8 @@ function RegisterForm({ onSuccess }: { onSuccess: () => void }) {
       await authApi.register({ username, email, password })
       onSuccess()
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'Registration failed')
+      const e = err.response?.data?.error
+      setError(typeof e === 'string' ? e : e?.formErrors?.[0] ?? JSON.stringify(e) ?? 'Registration failed')
     } finally { setLoading(false) }
   }
 

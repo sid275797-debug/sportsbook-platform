@@ -42,7 +42,8 @@ export default function Register() {
       try { const bal = await walletApi.balance(); setBalance(bal.data.data?.available ?? 0) } catch {}
       await router.push('/')
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'Registration failed')
+      const e = err.response?.data?.error
+      setError(typeof e === 'string' ? e : e?.formErrors?.[0] ?? JSON.stringify(e) ?? 'Registration failed')
     } finally { setLoading(false) }
   }
 
