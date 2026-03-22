@@ -1,10 +1,9 @@
-import 'dotenv/config'
+﻿import 'dotenv/config'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { logger } from '@sportsbook/logger'
-import { connectDb } from '@sportsbook/db-client'
 import { getRedis } from '@sportsbook/redis-client'
 import authRoutes from './routes/auth'
 import profileRoutes from './routes/profile'
@@ -30,8 +29,11 @@ async function bootstrap() {
 
   app.get('/health', async () => ({ status: 'ok', service: 'user-service', timestamp: new Date().toISOString() }))
 
-  await connectDb()
-  await getRedis().connect()
+  try {
+    await getRedis().connect()
+  } catch (err) {
+    logger.warn({ err }, 'Redis connection failed - continuing without cache')
+  }
 
   await app.listen({ port: PORT, host: '0.0.0.0' })
   logger.info({ port: PORT }, 'User service started')
