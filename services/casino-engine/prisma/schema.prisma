@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model CrashRound {
+  id              String   @id @default(uuid())
+  roundNumber     Int      @unique @map("round_number")
+  crashMultiplier Decimal  @map("crash_multiplier") @db.Decimal(10,4)
+  serverSeed      String   @map("server_seed")
+  clientSeed      String   @map("client_seed")
+  hash            String
+  status          String   @default("waiting")
+  startedAt       DateTime? @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  bets CrashBet[]
+  @@map("crash_rounds")
+}
+
+model CrashBet {
+  id                String   @id @default(uuid())
+  roundId           String   @map("round_id")
+  userId            String   @map("user_id")
+  stake             Decimal  @db.Decimal(18,2)
+  cashoutMultiplier Decimal? @map("cashout_multiplier") @db.Decimal(10,4)
+  payout            Decimal? @db.Decimal(18,2)
+  status            String   @default("active")
+  placedAt          DateTime @default(now()) @map("placed_at")
+  cashedOutAt       DateTime? @map("cashed_out_at")
+
+  round CrashRound @relation(fields: [roundId], references: [id])
+  @@index([userId])
+  @@map("crash_bets")
+}
+
+model DiceRound {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  betAmount  Decimal  @map("bet_amount") @db.Decimal(18,2)
+  target     Decimal  @db.Decimal(10,2)
+  rollOver   Boolean  @map("roll_over")
+  result     Decimal  @db.Decimal(10,2)
+  payout     Decimal  @db.Decimal(18,2)
+  won        Boolean
+  serverSeed String   @map("server_seed")
+  clientSeed String   @map("client_seed")
+  nonce      Int
+  createdAt  DateTime @default(now()) @map("created_at")
+  @@map("dice_rounds")
+}
+
+model RouletteRound {
+  id          String   @id @default(uuid())
+  result      Int
+  totalPayout Decimal  @map("total_payout") @db.Decimal(18,2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  bets        RouletteBet[]
+  @@map("roulette_rounds")
+}
+
+model RouletteBet {
+  id        String @id @default(uuid())
+  roundId   String @map("round_id")
+  userId    String @map("user_id")
+  betType   String @map("bet_type")
+  amount    Decimal @db.Decimal(18,2)
+  numbers   Json
+  payout    Decimal @db.Decimal(18,2)
+  won       Boolean
+  round RouletteRound @relation(fields: [roundId], references: [id])
+  @@map("roulette_bets")
+}

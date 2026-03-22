@@ -1,0 +1,16 @@
+{
+  "name": "@sportsbook/contracts-ethereum",
+  "version": "1.0.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:polygon": "hardhat run scripts/deploy.ts --network polygon"
+  },
+  "devDependencies": {
+    "hardhat": "^2.22.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,155 @@
+openapi: 3.1.0
+info:
+  title: Sportsbook Platform API
+  version: 1.0.0
+  description: Unified API for the Sportsbook Platform
+
+servers:
+  - url: https://api.sportsbook.example.com
+    description: Production
+  - url: http://localhost:4000
+    description: Local development
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        data: { type: object }
+        error: { type: string }
+        timestamp: { type: string, format: date-time }
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        username: { type: string }
+        role: { type: string, enum: [user, admin, trader] }
+        kycStatus: { type: string, enum: [pending, submitted, verified, rejected] }
+
+    BetSlip:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string }
+        totalStake: { type: number }
+        potentialPayout: { type: number }
+        status: { type: string, enum: [pending, accepted, settled_win, settled_loss, void, cancelled] }
+        selections: { type: array, items: { $ref: '#/components/schemas/BetSelection' } }
+
+    BetSelection:
+      type: object
+      properties:
+        marketId: { type: string }
+        outcomeId: { type: string }
+        odds: { type: number }
+        stake: { type: number }
+
+paths:
+  /api/auth/register:
+    post:
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, username]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                username: { type: string, minLength: 3 }
+      responses:
+        '201': { description: User registered successfully }
+        '409': { description: Email or username taken }
+
+  /api/auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200': { description: Login successful, returns tokens }
+        '401': { description: Invalid credentials }
+
+  /api/wallet/balance:
+    get:
+      summary: Get wallet balance
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Wallet balance
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          available: { type: number }
+                          locked: { type: number }
+                          bonus: { type: number }
+
+  /api/bets/place:
+    post:
+      summary: Place a bet
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [selections, totalStake]
+              properties:
+                selections:
+                  type: array
+                  items: { $ref: '#/components/schemas/BetSelection' }
+                totalStake: { type: number, minimum: 10 }
+                type: { type: string, enum: [single, accumulator] }
+      responses:
+        '201': { description: Bet placed }
+        '400': { description: Validation error or odds changed }
+
+  /api/casino/crash/bet:
+    post:
+      summary: Place crash game bet
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stake, roundId]
+              properties:
+                stake: { type: number }
+                roundId: { type: string }
+      responses:
+        '201': { description: Bet placed in crash round }
+
+  /api/casino/crash/cashout:
+    post:
+      summary: Cash out from crash game
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: Cashed out successfully }

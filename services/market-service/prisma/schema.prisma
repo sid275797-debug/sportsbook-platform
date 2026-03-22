@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Sport {
+  id       String @id @default(uuid())
+  name     String @unique
+  type     String
+  isActive Boolean @default(true) @map("is_active")
+  fixtures Fixture[]
+  @@map("sports")
+}
+
+model Fixture {
+  id         String   @id @default(uuid())
+  sportId    String   @map("sport_id")
+  homeTeamId String   @map("home_team_id")
+  awayTeamId String   @map("away_team_id")
+  startTime  DateTime @map("start_time")
+  status     String   @default("upcoming")
+  venue      String?
+  liveScore  Json?    @map("live_score")
+  externalId String?  @unique @map("external_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  sport   Sport    @relation(fields: [sportId], references: [id])
+  homeTeam Team    @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam Team    @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  markets  Market[]
+
+  @@index([status])
+  @@index([startTime])
+  @@map("fixtures")
+}
+
+model Team {
+  id        String @id @default(uuid())
+  name      String
+  shortName String @map("short_name")
+  sportId   String @map("sport_id")
+  logoUrl   String? @map("logo_url")
+  homeFixtures Fixture[] @relation("HomeTeam")
+  awayFixtures Fixture[] @relation("AwayTeam")
+  @@map("teams")
+}
+
+model Market {
+  id        String   @id @default(uuid())
+  fixtureId String   @map("fixture_id")
+  name      String
+  type      String
+  status    String   @default("upcoming")
+  inPlay    Boolean  @default(false) @map("in_play")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  fixture  Fixture   @relation(fields: [fixtureId], references: [id])
+  outcomes Outcome[]
+
+  @@index([fixtureId])
+  @@map("markets")
+}
+
+model Outcome {
+  id          String  @id @default(uuid())
+  marketId    String  @map("market_id")
+  name        String
+  odds        Decimal @db.Decimal(10,4)
+  probability Decimal @db.Decimal(10,6)
+  isActive    Boolean @default(true) @map("is_active")
+  result      Boolean?
+
+  market Market @relation(fields: [marketId], references: [id])
+
+  @@map("outcomes")
+}

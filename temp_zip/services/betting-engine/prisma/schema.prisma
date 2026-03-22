@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model BetSlip {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  type           String   @default("single")
+  totalStake     Decimal  @map("total_stake") @db.Decimal(18,2)
+  potentialPayout Decimal @map("potential_payout") @db.Decimal(18,2)
+  currency       String   @default("INR")
+  status         String   @default("pending")
+  placedAt       DateTime @default(now()) @map("placed_at")
+  settledAt      DateTime? @map("settled_at")
+
+  selections BetSelection[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("bet_slips")
+}
+
+model BetSelection {
+  id         String   @id @default(uuid())
+  betSlipId  String   @map("bet_slip_id")
+  marketId   String   @map("market_id")
+  outcomeId  String   @map("outcome_id")
+  odds       Decimal  @db.Decimal(10,4)
+  stake      Decimal  @db.Decimal(18,2)
+  status     String   @default("pending")
+  result     String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  betSlip BetSlip @relation(fields: [betSlipId], references: [id])
+
+  @@map("bet_selections")
+}

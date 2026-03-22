@@ -1,0 +1,13 @@
+{
+  "description": "Crash Game Analytics",
+  "panels": [
+    { "id": 1, "title": "Crash Multiplier Distribution", "type": "histogram", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 } },
+    { "id": 2, "title": "Rounds Per Hour", "type": "stat", "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 } },
+    { "id": 3, "title": "Total Casino GGR", "type": "stat", "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 } },
+    { "id": 4, "title": "Average Cashout Multiplier", "type": "gauge", "gridPos": { "h": 4, "w": 6, "x": 12, "y": 4 } },
+    { "id": 5, "title": "Crash Timeline", "type": "timeseries", "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 } }
+  ],
+  "title": "Crash Game Analytics",
+  "uid": "crash-analytics",
+  "tags": ["casino", "crash"]
+}

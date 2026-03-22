@@ -1,0 +1,60 @@
+global:
+  registry: your-registry.io/sportsbook
+  tag: latest
+  env: production
+  domain: sportsbook.example.com
+
+gateway:
+  replicas: 3
+  port: 4000
+  resources:
+    requests: { cpu: "250m", memory: "256Mi" }
+    limits: { cpu: "1", memory: "512Mi" }
+
+userService:
+  replicas: 2
+  port: 3001
+  resources:
+    requests: { cpu: "250m", memory: "256Mi" }
+    limits: { cpu: "500m", memory: "512Mi" }
+
+walletService:
+  replicas: 2
+  port: 3002
+
+bettingEngine:
+  replicas: 3
+  port: 3003
+
+marketService:
+  replicas: 2
+  port: 3004
+
+settlementEngine:
+  replicas: 1
+  port: 3005
+
+casinoEngine:
+  replicas: 2
+  port: 3006
+
+oddsEngine:
+  replicas: 2
+  port: 3007
+
+riskEngine:
+  replicas: 2
+  port: 3008
+
+postgres:
+  host: postgres-primary
+  port: 5432
+  database: sportsbook
+  poolSize: 20
+
+redis:
+  host: redis-cluster
+  port: 6379
+
+kafka:
+  brokers: kafka-0:9092,kafka-1:9092,kafka-2:9092

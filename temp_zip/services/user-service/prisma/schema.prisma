@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  phone        String?  @unique
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("user")
+  kycStatus    String   @default("pending") @map("kyc_status")
+  isActive     Boolean  @default(true) @map("is_active")
+  referralCode String?  @unique @map("referral_code")
+  referredBy   String?  @map("referred_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sessions     Session[]
+  kycDocuments KycDocument[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  refreshToken String   @unique @map("refresh_token")
+  ipAddress    String   @map("ip_address")
+  userAgent    String   @map("user_agent")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model KycDocument {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  type         String
+  documentUrl  String   @map("document_url")
+  status       String   @default("pending")
+  reviewedBy   String?  @map("reviewed_by")
+  reviewNote   String?  @map("review_note")
+  submittedAt  DateTime @default(now()) @map("submitted_at")
+  reviewedAt   DateTime? @map("reviewed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("kyc_documents")
+}
