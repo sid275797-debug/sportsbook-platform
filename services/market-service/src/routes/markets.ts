@@ -1,5 +1,5 @@
-import { FastifyInstance } from 'fastify'
-import db from '@sportsbook/db-client'
+﻿import { FastifyInstance } from 'fastify'
+import db from '../prisma'
 import { getCache, setCache, CacheKeys } from '@sportsbook/redis-client'
 import { authenticate, requireRole } from '@sportsbook/auth-middleware'
 

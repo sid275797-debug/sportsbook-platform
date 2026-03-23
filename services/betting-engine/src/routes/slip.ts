@@ -1,6 +1,6 @@
-import { FastifyInstance } from 'fastify'
+﻿import { FastifyInstance } from 'fastify'
 import { authenticate } from '@sportsbook/auth-middleware'
-import db from '@sportsbook/db-client'
+import db from '../prisma'
 
 function addTotalOdds(slip: any) {
   const selections = slip.selections ?? []

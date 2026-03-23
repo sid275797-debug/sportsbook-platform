@@ -1,8 +1,8 @@
-import { FastifyInstance } from 'fastify'
+﻿import { FastifyInstance } from 'fastify'
 import { authenticate } from '@sportsbook/auth-middleware'
 import { WalletService } from '../services/wallet'
 import { z } from 'zod'
-import db from '@sportsbook/db-client'
+import db from '../prisma'
 
 const walletService = new WalletService()
 

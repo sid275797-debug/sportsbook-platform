@@ -1,4 +1,4 @@
-import db from '@sportsbook/db-client'
+﻿import db from '../prisma'
 import { setCache, deleteCache, CacheKeys } from '@sportsbook/redis-client'
 import { createProducer, publish } from '@sportsbook/kafka-client'
 import { KAFKA_TOPICS } from '@sportsbook/shared-types'

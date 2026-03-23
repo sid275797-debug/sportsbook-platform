@@ -1,8 +1,7 @@
-import 'dotenv/config'
+﻿import 'dotenv/config'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { logger } from '@sportsbook/logger'
-import { connectDb } from '@sportsbook/db-client'
 import { getRedis } from '@sportsbook/redis-client'
 import walletRoutes from './routes/wallet'
 import depositRoutes from './routes/deposit'
@@ -22,8 +21,7 @@ async function bootstrap() {
   await app.register(adminRoutes, { prefix: '/api/admin/wallet' })
   await app.register(internalRoutes, { prefix: '/api/wallet/internal' })
   app.get('/health', async () => ({ status: 'ok', service: 'wallet-service' }))
-  await connectDb()
-  await getRedis().connect()
+  try { await getRedis().connect() } catch (err) { logger.warn({ err }, 'Redis failed') }
   await app.listen({ port: PORT, host: '0.0.0.0' })
   logger.info({ port: PORT }, 'Wallet service started')
 }

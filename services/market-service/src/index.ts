@@ -1,8 +1,7 @@
-import 'dotenv/config'
+﻿import 'dotenv/config'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { logger } from '@sportsbook/logger'
-import { connectDb } from '@sportsbook/db-client'
 import { getRedis } from '@sportsbook/redis-client'
 import { FeedConsumer } from './feed-consumer/consumer'
 import sportsRoutes from './routes/sports'
@@ -19,11 +18,11 @@ async function bootstrap() {
   await app.register(fixtureRoutes, { prefix: '/api/fixtures' })
   await app.register(marketRoutes, { prefix: '/api/markets' })
   app.get('/health', async () => ({ status: 'ok', service: 'market-service' }))
-  await connectDb()
-  await getRedis().connect()
-  // Start Kafka consumer for feed events
-  const feedConsumer = new FeedConsumer()
-  await feedConsumer.start()
+  try { await getRedis().connect() } catch (err) { logger.warn({ err }, 'Redis failed') }
+  try {
+    const feedConsumer = new FeedConsumer()
+    await feedConsumer.start()
+  } catch (err) { logger.warn({ err }, 'Feed consumer failed to start') }
   await app.listen({ port: PORT, host: '0.0.0.0' })
   logger.info({ port: PORT }, 'Market service started')
 }

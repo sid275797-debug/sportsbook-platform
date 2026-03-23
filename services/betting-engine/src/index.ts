@@ -1,8 +1,7 @@
-import 'dotenv/config'
+﻿import 'dotenv/config'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { logger } from '@sportsbook/logger'
-import { connectDb } from '@sportsbook/db-client'
 import { getRedis } from '@sportsbook/redis-client'
 import betRoutes from './routes/bet'
 import slipRoutes from './routes/slip'
@@ -18,8 +17,7 @@ async function bootstrap() {
   await app.register(slipRoutes, { prefix: '/api/slips' })
   await app.register(historyRoutes, { prefix: '/api/history' })
   app.get('/health', async () => ({ status: 'ok', service: 'betting-engine' }))
-  await connectDb()
-  await getRedis().connect()
+  try { await getRedis().connect() } catch (err) { logger.warn({ err }, 'Redis failed') }
   await app.listen({ port: PORT, host: '0.0.0.0' })
   logger.info({ port: PORT }, 'Betting engine started')
 }

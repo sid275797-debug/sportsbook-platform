@@ -1,3 +1,4 @@
+﻿import db from '../prisma'
 import { FastifyInstance } from 'fastify'
 import { authenticate } from '@sportsbook/auth-middleware'
 import { BettingService } from '../services/bettingService'
@@ -55,7 +56,7 @@ export default async function betRoutes(app: FastifyInstance) {
 
   app.get('/internal/by-market/:marketId', async (req, reply) => {
     const { marketId } = req.params as { marketId: string }
-    const bets = await (await import('@sportsbook/db-client')).default.betSlip.findMany({
+    const bets = await db.betSlip.findMany({
       where: { selections: { some: { marketId } }, status: { in: ['pending', 'accepted'] } },
       include: { selections: true },
     })

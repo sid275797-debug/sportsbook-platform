@@ -1,5 +1,5 @@
-import { FastifyInstance } from 'fastify'
-import db from '@sportsbook/db-client'
+﻿import { FastifyInstance } from 'fastify'
+import db from '../prisma'
 
 export default async function fixtureRoutes(app: FastifyInstance) {
   // GET /api/fixtures/live
