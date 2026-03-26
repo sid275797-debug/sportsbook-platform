@@ -1,7 +1,7 @@
 import { createConsumer, subscribe } from '@sportsbook/kafka-client'
 import { KAFKA_TOPICS, KafkaMessage } from '@sportsbook/shared-types'
 import { createLogger } from '@sportsbook/logger'
-import db from '@sportsbook/db-client'
+import db from '../prisma'
 import { setCache, CacheKeys } from '@sportsbook/redis-client'
 
 const log = createLogger('feed-consumer')

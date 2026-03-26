@@ -9,61 +9,89 @@ datasource db {
 }
 
 model Sport {
-  id       String @id @default(uuid())
-  name     String @unique
-  type     String
-  isActive Boolean @default(true) @map("is_active")
-  fixtures Fixture[]
+  id           String        @id @default(uuid())
+  name         String        @unique
+  type         String
+  isActive     Boolean       @default(true) @map("is_active")
+  fixtures     Fixture[]
+  competitions Competition[]
+  teams        Team[]
   @@map("sports")
 }
 
+model Competition {
+  id        String    @id @default(uuid())
+  name      String
+  shortName String?   @map("short_name")
+  sportId   String    @map("sport_id")
+  season    String?
+  country   String?
+  logoUrl   String?   @map("logo_url")
+  isActive  Boolean   @default(true) @map("is_active")
+  startDate DateTime? @map("start_date")
+  endDate   DateTime? @map("end_date")
+  sport     Sport     @relation(fields: [sportId], references: [id])
+  fixtures  Fixture[]
+  @@unique([name, season])
+  @@map("competitions")
+}
+
 model Fixture {
-  id         String   @id @default(uuid())
-  sportId    String   @map("sport_id")
-  homeTeamId String   @map("home_team_id")
-  awayTeamId String   @map("away_team_id")
-  startTime  DateTime @map("start_time")
-  status     String   @default("upcoming")
-  venue      String?
-  liveScore  Json?    @map("live_score")
-  externalId String?  @unique @map("external_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  sport   Sport    @relation(fields: [sportId], references: [id])
-  homeTeam Team    @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  awayTeam Team    @relation("AwayTeam", fields: [awayTeamId], references: [id])
-  markets  Market[]
-
+  id            String       @id @default(uuid())
+  sportId       String       @map("sport_id")
+  competitionId String?      @map("competition_id")
+  homeTeamId    String       @map("home_team_id")
+  awayTeamId    String       @map("away_team_id")
+  startTime     DateTime     @map("start_time")
+  status        String       @default("upcoming")
+  venue         String?
+  liveScore     Json?        @map("live_score")
+  externalId    String?      @unique @map("external_id")
+  format        String?
+  matchNumber   Int?         @map("match_number")
+  season        String?
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  sport         Sport        @relation(fields: [sportId], references: [id])
+  competition   Competition? @relation(fields: [competitionId], references: [id])
+  homeTeam      Team         @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam      Team         @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  markets       Market[]
   @@index([status])
   @@index([startTime])
+  @@index([competitionId])
   @@map("fixtures")
 }
 
 model Team {
-  id        String @id @default(uuid())
-  name      String
-  shortName String @map("short_name")
-  sportId   String @map("sport_id")
-  logoUrl   String? @map("logo_url")
-  homeFixtures Fixture[] @relation("HomeTeam")
-  awayFixtures Fixture[] @relation("AwayTeam")
+  id             String    @id @default(uuid())
+  name           String
+  shortName      String    @map("short_name")
+  sportId        String    @map("sport_id")
+  logoUrl        String?   @map("logo_url")
+  colorPrimary   String?   @map("color_primary")
+  colorSecondary String?   @map("color_secondary")
+  sport          Sport     @relation(fields: [sportId], references: [id])
+  homeFixtures   Fixture[] @relation("HomeTeam")
+  awayFixtures   Fixture[] @relation("AwayTeam")
+  @@index([shortName, sportId])
   @@map("teams")
 }
 
 model Market {
-  id        String   @id @default(uuid())
-  fixtureId String   @map("fixture_id")
+  id        String    @id @default(uuid())
+  fixtureId String    @map("fixture_id")
   name      String
   type      String
-  status    String   @default("upcoming")
-  inPlay    Boolean  @default(false) @map("in_play")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  fixture  Fixture   @relation(fields: [fixtureId], references: [id])
-  outcomes Outcome[]
-
+  status    String    @default("upcoming")
+  inPlay    Boolean   @default(false) @map("in_play")
+  sortOrder Int       @default(0) @map("sort_order")
+  category  String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  fixture   Fixture   @relation(fields: [fixtureId], references: [id])
+  outcomes  Outcome[]
   @@index([fixtureId])
+  @@index([type])
   @@map("markets")
 }
 
@@ -75,8 +103,7 @@ model Outcome {
   probability Decimal @db.Decimal(10,6)
   isActive    Boolean @default(true) @map("is_active")
   result      Boolean?
-
-  market Market @relation(fields: [marketId], references: [id])
-
+  sortOrder   Int     @default(0) @map("sort_order")
+  market      Market  @relation(fields: [marketId], references: [id])
   @@map("outcomes")
 }

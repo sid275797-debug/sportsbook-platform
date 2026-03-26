@@ -1,4 +1,4 @@
-import db from '@sportsbook/db-client'
+import db from '../../prisma'
 import axios from 'axios'
 import crypto from 'crypto'
 

@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { createLogger } from '@sportsbook/logger'
-import db from '@sportsbook/db-client'
+import db from '../../prisma'
 import { generateServerSeed, generateCrashPoint } from '../../provably-fair'
 import { wsClients } from '../../websocket/handler'
 import { createProducer, publish } from '@sportsbook/kafka-client'

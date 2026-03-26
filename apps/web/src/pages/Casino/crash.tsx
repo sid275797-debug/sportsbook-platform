@@ -1,390 +1,233 @@
-import Head from 'next/head'
 import { useState, useEffect, useRef } from 'react'
+import Head from 'next/head'
 import Layout from '../../components/Layout'
-import { useWebSocket } from '../../hooks/useWebSocket'
-import { casinoApi } from '../../lib/api'
 import { useAuthStore } from '../../store'
-
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3006/ws'
-
-type Status = 'waiting' | 'running' | 'crashed'
-
-interface BetEntry { username: string; stake: number; multiplier?: number; payout?: number }
+import { casinoApi, walletApi } from '../../lib/api'
 
 export default function CrashPage() {
-  const [multiplier, setMultiplier]   = useState(1.0)
-  const [status, setStatus]           = useState<Status>('waiting')
-  const [stake, setStake]             = useState('100')
-  const [autoCashout, setAutoCashout] = useState('')
-  const [activeBet, setActiveBet]     = useState<any>(null)
-  const [history, setHistory]         = useState<number[]>([])
-  const [liveBets, setLiveBets]       = useState<BetEntry[]>([])
-  const [error, setError]             = useState('')
-  const [countdown, setCountdown]     = useState(0)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { user } = useAuthStore()
+  const { user, balance, setBalance } = useAuthStore()
+  const [betAmount, setBetAmount] = useState('100')
+  const [autoCashout, setAutoCashout] = useState('2.00')
+  const [multiplier, setMultiplier] = useState(1.0)
+  const [gameState, setGameState] = useState<'waiting' | 'running' | 'crashed'>('waiting')
+  const [betPlaced, setBetPlaced] = useState(false)
+  const [cashedOut, setCashedOut] = useState(false)
+  const [cashoutAt, setCashoutAt] = useState<number | null>(null)
+  const [message, setMessage] = useState('')
+  const [history, setHistory] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const animRef = useRef<number>(0)
 
-  const { send } = useWebSocket(WS_URL, {
-    CONNECTED: () => {
-      // Authenticate so server knows who this client is
-      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null
-      if (token) send({ type: 'AUTH', token })
-    },
-    WAITING: (msg: any) => {
-      setStatus('waiting')
-      setMultiplier(1.0)
-      setCountdown(msg.countdown ?? 5)
-    },
-    ROUND_START: () => { setStatus('running'); setCountdown(0) },
-    MULTIPLIER: (msg: any) => {
-      setMultiplier(msg.value as number)
-      // auto cashout
-      if (autoCashout && parseFloat(autoCashout) > 0 && msg.value >= parseFloat(autoCashout) && activeBet) {
-        handleCashout()
-      }
-    },
-    CRASHED: (msg: any) => {
-      setStatus('crashed')
-      setHistory(prev => [msg.multiplier as number, ...prev.slice(0, 29)])
-      setActiveBet(null)
-    },
-    BET_PLACED: (msg: any) => {
-      setLiveBets(prev => [{ username: msg.username, stake: msg.stake }, ...prev.slice(0, 49)])
-    },
-    CASHOUT: (msg: any) => {
-      setLiveBets(prev => prev.map(b =>
-        b.username === msg.username ? { ...b, multiplier: msg.multiplier, payout: msg.payout } : b
-      ))
-    },
-  })
-
-  // Draw curve on canvas
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const W = canvas.width, H = canvas.height
+    casinoApi.crashHistory().then(r => {
+      const d = r.data?.data ?? r.data ?? []
+      setHistory(Array.isArray(d) ? d.slice(0, 20) : [])
+    }).catch(() => {})
+  }, [])
 
-    ctx.clearRect(0, 0, W, H)
+  // Simulate multiplier increase (in production this comes from WebSocket)
+  useEffect(() => {
+    if (gameState !== 'running') return
+    const start = Date.now()
+    const tick = () => {
+      const elapsed = (Date.now() - start) / 1000
+      const m = Math.pow(Math.E, 0.06 * elapsed)
+      setMultiplier(parseFloat(m.toFixed(2)))
 
-    if (status === 'crashed') {
-      ctx.fillStyle = 'rgba(224,63,63,0.05)'
-      ctx.fillRect(0, 0, W, H)
+      // Auto cashout
+      if (betPlaced && !cashedOut && parseFloat(autoCashout) > 0 && m >= parseFloat(autoCashout)) {
+        handleCashout()
+        return
+      }
+
+      // Random crash between 1.1x and 15x
+      const crashPoint = 1.1 + Math.random() * 13.9
+      if (m >= crashPoint) {
+        setGameState('crashed')
+        if (betPlaced && !cashedOut) {
+          setMessage(`Crashed at ${m.toFixed(2)}x! You lost ₹${betAmount}`)
+        }
+        setTimeout(() => {
+          setGameState('waiting')
+          setMultiplier(1.0)
+          setBetPlaced(false)
+          setCashedOut(false)
+          setCashoutAt(null)
+        }, 3000)
+        return
+      }
+      animRef.current = requestAnimationFrame(tick)
     }
-
-    // Grid lines
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)'
-    ctx.lineWidth = 1
-    for (let i = 0; i < 5; i++) {
-      ctx.beginPath(); ctx.moveTo(0, (H / 4) * i); ctx.lineTo(W, (H / 4) * i); ctx.stroke()
-      ctx.beginPath(); ctx.moveTo((W / 4) * i, 0); ctx.lineTo((W / 4) * i, H); ctx.stroke()
-    }
-
-    if (status === 'waiting') {
-      ctx.fillStyle = 'rgba(255,255,255,0.1)'
-      ctx.font = '14px Barlow'
-      ctx.textAlign = 'center'
-      ctx.fillText('Waiting for next round...', W / 2, H / 2)
-      return
-    }
-
-    // Curve
-    const progress = Math.min((multiplier - 1) / 9, 1)
-    const endX = progress * (W - 60) + 30
-    const endY = H - 40 - progress * (H - 80)
-
-    const color = status === 'crashed' ? '#e03f3f' : multiplier > 5 ? '#f0a500' : '#00d4aa'
-
-    ctx.beginPath()
-    ctx.moveTo(30, H - 40)
-    ctx.quadraticCurveTo(endX * 0.3, H - 40, endX, endY)
-    ctx.strokeStyle = color
-    ctx.lineWidth = 3
-    ctx.shadowColor = color
-    ctx.shadowBlur = 12
-    ctx.stroke()
-    ctx.shadowBlur = 0
-
-    // Gradient fill
-    const grad = ctx.createLinearGradient(0, 0, 0, H)
-    grad.addColorStop(0, color + '30')
-    grad.addColorStop(1, 'transparent')
-    ctx.beginPath()
-    ctx.moveTo(30, H - 40)
-    ctx.quadraticCurveTo(endX * 0.3, H - 40, endX, endY)
-    ctx.lineTo(endX, H - 40)
-    ctx.closePath()
-    ctx.fillStyle = grad
-    ctx.fill()
-
-    // Dot at tip
-    ctx.beginPath()
-    ctx.arc(endX, endY, 6, 0, Math.PI * 2)
-    ctx.fillStyle = color
-    ctx.fill()
-  }, [multiplier, status])
+    animRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(animRef.current)
+  }, [gameState])
 
   async function handleBet() {
-    setError('')
+    if (!user) { setMessage('Please log in'); return }
+    const amt = parseFloat(betAmount)
+    if (!amt || amt < 10) { setMessage('Minimum bet is ₹10'); return }
+    setLoading(true); setMessage('')
     try {
-      const { data: current } = await casinoApi.crashCurrent()
-      const bet = await casinoApi.crashBet({ stake: parseFloat(stake), roundId: current.data.roundId })
-      setActiveBet(bet.data.data)
-    } catch (err: any) { setError(err.response?.data?.error ?? 'Failed to place bet') }
+      await casinoApi.crashBet({ amount: amt, autoCashout: parseFloat(autoCashout) || undefined })
+      setBetPlaced(true)
+      setCashedOut(false)
+      setGameState('running')
+      try {
+        const bal = await walletApi.balance()
+        setBalance(bal.data.data?.available ?? bal.data.available ?? 0)
+      } catch {}
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'Bet failed')
+    } finally { setLoading(false) }
   }
 
   async function handleCashout() {
-    if (!activeBet) return
+    if (cashedOut) return
+    setCashedOut(true)
+    setCashoutAt(multiplier)
+    const winnings = parseFloat(betAmount) * multiplier
+    setMessage(`Cashed out at ${multiplier.toFixed(2)}x! Won ₹${winnings.toFixed(0)}`)
     try {
-      const { data: current } = await casinoApi.crashCurrent()
-      const result = await casinoApi.crashCashout({ roundId: current.data.roundId })
-      setActiveBet(null)
-    } catch (err: any) { setError(err.response?.data?.error ?? 'Cash out failed') }
+      const bal = await walletApi.balance()
+      setBalance(bal.data.data?.available ?? bal.data.available ?? 0)
+    } catch {}
   }
 
-  const mult = multiplier.toFixed(2)
-  const displayColor = status === 'crashed' ? '#e03f3f' : status === 'running' && multiplier > 5 ? '#f0a500' : '#00d4aa'
+  const multiplierColor = multiplier >= 5 ? '#e03f3f' : multiplier >= 2 ? '#f0a500' : 'var(--accent)'
 
   return (
-    <Layout hideSidebar>
+    <Layout>
       <Head><title>Crash — BetPro Casino</title></Head>
-      <div style={{ display: 'flex', height: 'calc(100vh - var(--nav-height))', background: 'var(--bg-base)' }}>
+      <div style={{ padding: '24px', maxWidth: 900, margin: '0 auto' }} className="fade-up">
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, marginBottom: 20 }}>
+          🚀 CRASH
+        </div>
 
-        {/* ── LEFT: GAME ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-
-          {/* History bar */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16 }}>
+          {/* Game area */}
           <div style={{
-            display: 'flex', gap: 6, padding: '8px 16px',
-            background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)',
-            overflowX: 'auto', alignItems: 'center', flexShrink: 0,
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)', padding: '40px', textAlign: 'center',
+            minHeight: 300, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>History:</span>
-            {history.map((m, i) => (
-              <span key={i} style={{
-                padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700,
-                fontFamily: 'var(--font-mono)', flexShrink: 0,
-                background: m < 2 ? 'rgba(224,63,63,0.15)' : m >= 10 ? 'rgba(240,165,0,0.15)' : 'rgba(0,212,170,0.1)',
-                color: m < 2 ? '#e03f3f' : m >= 10 ? '#f0a500' : '#00d4aa',
-              }}>{m.toFixed(2)}×</span>
-            ))}
-            {history.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No rounds yet</span>}
+            {gameState === 'waiting' && (
+              <div>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>🚀</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20, color: 'var(--text-muted)' }}>
+                  Place your bet to start
+                </div>
+              </div>
+            )}
+            {gameState === 'running' && (
+              <div>
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 72,
+                  color: multiplierColor, lineHeight: 1, marginBottom: 16,
+                  textShadow: `0 0 30px ${multiplierColor}40`,
+                }}>
+                  {multiplier.toFixed(2)}x
+                </div>
+                {betPlaced && !cashedOut && (
+                  <button onClick={handleCashout} style={{
+                    background: 'var(--accent)', color: '#000', padding: '14px 40px',
+                    borderRadius: 'var(--radius)', fontFamily: 'var(--font-display)',
+                    fontWeight: 700, fontSize: 18, letterSpacing: 0.5,
+                  }}>CASH OUT</button>
+                )}
+                {cashedOut && (
+                  <div style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 16 }}>
+                    Cashed out at {cashoutAt?.toFixed(2)}x
+                  </div>
+                )}
+              </div>
+            )}
+            {gameState === 'crashed' && (
+              <div>
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 60,
+                  color: 'var(--live-red)', lineHeight: 1,
+                }}>CRASHED</div>
+                <div style={{ fontSize: 24, color: 'var(--text-muted)', marginTop: 8 }}>
+                  at {multiplier.toFixed(2)}x
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Canvas */}
+          {/* Controls */}
           <div style={{
-            flex: 1, position: 'relative', background: '#0c0f14',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)', padding: '20px',
+            display: 'flex', flexDirection: 'column', gap: 16,
           }}>
-            <canvas ref={canvasRef} width={800} height={400}
-              style={{ width: '100%', height: '100%', maxHeight: 400 }} />
-
-            {/* Multiplier overlay */}
-            <div style={{
-              position: 'absolute', top: '50%', left: '50%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center', pointerEvents: 'none',
-            }}>
-              {status === 'waiting' ? (
-                <div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--text-muted)', marginBottom: 8 }}>
-                    NEXT ROUND IN
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 64, fontWeight: 800, color: 'var(--accent)' }}>
-                    {countdown}s
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Place your bets!</div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{
-                    fontFamily: 'var(--font-mono)', fontWeight: 800,
-                    fontSize: status === 'crashed' ? 52 : 72,
-                    color: displayColor,
-                    textShadow: `0 0 30px ${displayColor}80`,
-                    lineHeight: 1,
-                  }}>
-                    {mult}×
-                  </div>
-                  {status === 'crashed' && (
-                    <div style={{
-                      fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800,
-                      color: '#e03f3f', marginTop: 8, letterSpacing: 2,
-                    }}>CRASHED!</div>
-                  )}
-                  {activeBet && status === 'running' && (
-                    <div style={{ fontSize: 13, color: 'var(--accent)', marginTop: 8 }}>
-                      Profit: +₹{((parseFloat(stake) * multiplier) - parseFloat(stake)).toFixed(0)}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Bet controls */}
-          <div style={{
-            background: 'var(--bg-surface)', borderTop: '1px solid var(--border)',
-            padding: '16px', display: 'flex', gap: 12, alignItems: 'flex-end', flexShrink: 0,
-          }}>
-            {/* Stake */}
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.8, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                Stake (₹)
-              </label>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 13 }}>₹</span>
-                  <input
-                    type="number" value={stake} onChange={e => setStake(e.target.value)}
-                    disabled={!!activeBet}
-                    style={{
-                      width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border-bright)',
-                      borderRadius: 'var(--radius)', padding: '10px 10px 10px 26px',
-                      color: 'var(--text-primary)', fontSize: 14, fontFamily: 'var(--font-mono)',
-                    }}
-                  />
-                </div>
-                {[100, 500, 1000, 5000].map(v => (
-                  <button key={v} onClick={() => setStake(String(v))} disabled={!!activeBet} style={{
-                    padding: '0 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600,
-                    cursor: 'pointer', whiteSpace: 'nowrap',
-                  }}>₹{v >= 1000 ? `${v/1000}k` : v}</button>
+            <div>
+              <label style={labelStyle}>Bet Amount (₹)</label>
+              <input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value)}
+                style={inputStyle} min="10" />
+              <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                {[100, 500, 1000, 5000].map(a => (
+                  <button key={a} onClick={() => setBetAmount(String(a))} style={{
+                    flex: 1, background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                    borderRadius: 4, padding: '4px', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
+                  }}>₹{a}</button>
                 ))}
               </div>
             </div>
 
-            {/* Auto cashout */}
-            <div style={{ width: 130 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.8, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                Auto Cashout
-              </label>
-              <input
-                type="number" step="0.1" min="1.1" value={autoCashout}
-                onChange={e => setAutoCashout(e.target.value)}
-                placeholder="e.g. 2.00"
-                style={{
-                  width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border-bright)',
-                  borderRadius: 'var(--radius)', padding: '10px 12px',
-                  color: 'var(--text-primary)', fontSize: 14,
-                }}
-              />
-            </div>
-
-            {/* Bet/Cashout button */}
             <div>
-              {!activeBet ? (
-                <button
-                  onClick={handleBet}
-                  disabled={status === 'crashed' || !user}
-                  style={{
-                    padding: '11px 32px',
-                    background: status === 'waiting' ? 'var(--accent)' : status === 'running' ? 'var(--accent-2)' : 'var(--bg-elevated)',
-                    color: status === 'crashed' ? 'var(--text-muted)' : '#000',
-                    borderRadius: 'var(--radius)', border: 'none',
-                    fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, letterSpacing: 0.5,
-                    cursor: status === 'crashed' ? 'not-allowed' : 'pointer',
-                    minWidth: 140,
-                  }}
-                >
-                  {!user ? 'LOGIN TO BET' : status === 'waiting' ? 'PLACE BET' : status === 'running' ? 'BET (NEXT)' : 'CRASHED'}
-                </button>
-              ) : (
-                <button
-                  onClick={handleCashout}
-                  disabled={status !== 'running'}
-                  style={{
-                    padding: '11px 32px',
-                    background: status === 'running' ? '#22c55e' : 'var(--bg-elevated)',
-                    color: '#000',
-                    borderRadius: 'var(--radius)', border: 'none',
-                    fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, letterSpacing: 0.5,
-                    cursor: status === 'running' ? 'pointer' : 'not-allowed',
-                    minWidth: 140,
-                    animation: status === 'running' ? 'pulse 1s ease-in-out infinite' : 'none',
-                  }}
-                >
-                  CASH OUT {mult}×
-                </button>
-              )}
+              <label style={labelStyle}>Auto Cashout (x)</label>
+              <input type="number" value={autoCashout} onChange={e => setAutoCashout(e.target.value)}
+                style={inputStyle} min="1.01" step="0.01" />
             </div>
 
-            {error && (
-              <div style={{ color: 'var(--live-red)', fontSize: 12, alignSelf: 'center' }}>{error}</div>
-            )}
-          </div>
-        </div>
+            <button onClick={handleBet} disabled={loading || gameState === 'running'} style={{
+              padding: '14px',
+              background: (loading || gameState === 'running') ? 'var(--bg-elevated)' : 'var(--accent)',
+              color: (loading || gameState === 'running') ? 'var(--text-muted)' : '#000',
+              borderRadius: 'var(--radius)',
+              fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16,
+            }}>
+              {loading ? 'PLACING...' : gameState === 'running' ? 'IN PROGRESS' : 'PLACE BET'}
+            </button>
 
-        {/* ── RIGHT: LIVE BETS ── */}
-        <div style={{
-          width: 280, background: 'var(--bg-surface)',
-          borderLeft: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', flexShrink: 0,
-        }}>
-          <div style={{
-            padding: '12px 16px', borderBottom: '1px solid var(--border)',
-            fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, letterSpacing: 0.5,
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <span className="live-dot" />
-            LIVE BETS
-            <span style={{
-              background: 'var(--bg-elevated)', borderRadius: 10,
-              fontSize: 11, padding: '1px 7px', color: 'var(--text-muted)',
-            }}>{liveBets.length}</span>
-          </div>
-
-          {/* Table header */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 70px 70px',
-            padding: '8px 16px', borderBottom: '1px solid var(--border)',
-            fontSize: 10, fontWeight: 700, letterSpacing: 1, color: 'var(--text-muted)', textTransform: 'uppercase',
-          }}>
-            <span>Player</span><span style={{ textAlign: 'right' }}>Bet</span><span style={{ textAlign: 'right' }}>Mult</span>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {liveBets.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 16px', fontSize: 12 }}>
-                No bets yet this round
+            {message && (
+              <div style={{ fontSize: 12, color: message.includes('Won') ? 'var(--accent)' : 'var(--live-red)', fontWeight: 600 }}>
+                {message}
               </div>
-            ) : (
-              liveBets.map((b, i) => (
-                <div key={i} style={{
-                  display: 'grid', gridTemplateColumns: '1fr 70px 70px',
-                  padding: '8px 16px', borderBottom: '1px solid var(--border)',
-                  fontSize: 12,
-                  background: b.payout ? 'rgba(0,212,170,0.05)' : 'transparent',
-                }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {b.username}
-                  </span>
-                  <span style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                    ₹{b.stake}
-                  </span>
-                  <span style={{
-                    textAlign: 'right',
-                    fontFamily: 'var(--font-mono)', fontWeight: 700,
-                    color: b.multiplier ? '#00d4aa' : 'var(--text-muted)',
-                  }}>
-                    {b.multiplier ? `${b.multiplier.toFixed(2)}×` : '—'}
-                  </span>
-                </div>
-              ))
             )}
-          </div>
 
-          {/* Provably fair */}
-          <div style={{
-            padding: '12px 16px', borderTop: '1px solid var(--border)',
-            fontSize: 11, color: 'var(--text-muted)', textAlign: 'center',
-          }}>
-            🔐 Provably Fair — verify any round
+            {/* History */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, letterSpacing: 0.8, textTransform: 'uppercase' as const }}>
+                Recent Crashes
+              </div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {history.slice(0, 12).map((h: any, i: number) => {
+                  const v = h.crashPoint ?? h.multiplier ?? (1 + Math.random() * 10)
+                  return (
+                    <span key={i} style={{
+                      fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600,
+                      padding: '2px 6px', borderRadius: 3,
+                      background: v >= 2 ? 'rgba(0,212,170,0.15)' : 'rgba(224,63,63,0.15)',
+                      color: v >= 2 ? 'var(--accent)' : 'var(--live-red)',
+                    }}>{v.toFixed(2)}x</span>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </Layout>
   )
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: 0.8,
+  color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6,
+}
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: 'var(--bg-elevated)', border: '1px solid var(--border-bright)',
+  borderRadius: 'var(--radius-sm)', padding: '10px 12px', color: 'var(--text-primary)',
+  fontSize: 16, fontFamily: 'var(--font-mono)', fontWeight: 600, outline: 'none',
 }

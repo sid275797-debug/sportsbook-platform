@@ -28,6 +28,10 @@ export const KAFKA_TOPICS = {
   // User events
   USER_REGISTERED: 'user.registered',
   USER_KYC_UPDATED: 'user.kyc.updated',
+  // Cricket events
+  CRICKET_MATCH_STARTED: 'cricket.match.started',
+  CRICKET_MATCH_COMPLETED: 'cricket.match.completed',
+  CRICKET_SCORE_UPDATE: 'cricket.score.update',
   // Risk events
   RISK_ALERT: 'risk.alert',
   BET_FLAGGED: 'risk.bet_flagged',

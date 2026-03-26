@@ -1,121 +1,138 @@
-'use client'
-import { useState } from 'react'
+import { useState, FormEvent } from 'react'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
-import { walletApi } from '../../lib/api'
 import { useAuthStore } from '../../store'
-export default function Withdraw() {
-  const { balance, setBalance } = useAuthStore()
-  const [amount, setAmount]   = useState('')
-  const [method, setMethod]   = useState('upi')
-  const [account, setAccount] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
-  const [error, setError]     = useState('')
+import { walletApi } from '../../lib/api'
 
-  async function handleWithdraw() {
+export default function WithdrawPage() {
+  const router = useRouter()
+  const { user, balance, setBalance } = useAuthStore()
+  const [amount, setAmount] = useState('')
+  const [method, setMethod] = useState('upi')
+  const [upiId, setUpiId] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  if (!user) { if (typeof window !== 'undefined') router.push('/login'); return null }
+
+  async function handleWithdraw(e: FormEvent) {
+    e.preventDefault()
     const amt = parseFloat(amount)
-    if (!amt || amt < 500)   { setError('Minimum withdrawal is ₹500'); return }
-    if (amt > balance)       { setError('Insufficient balance'); return }
-    if (!account.trim())     { setError('Please enter your account details'); return }
-    setLoading(true); setError('')
+    if (!amt || amt < 100) { setMessage({ type: 'error', text: 'Minimum withdrawal is ₹100' }); return }
+    if (amt > balance) { setMessage({ type: 'error', text: 'Insufficient balance' }); return }
+    setLoading(true); setMessage(null)
     try {
-      await walletApi.withdraw({ amount: amt, bankAccount: account })
-      setBalance(balance - amt)
-      setSuccess(true)
+      await walletApi.withdraw({
+        amount: amt,
+        method,
+        accountDetails: method === 'upi' ? { upiId } : undefined,
+      })
+      setMessage({ type: 'success', text: `Withdrawal of ₹${amt.toLocaleString('en-IN')} initiated!` })
+      setAmount('')
+      try {
+        const bal = await walletApi.balance()
+        setBalance(bal.data.data?.available ?? bal.data.available ?? 0)
+      } catch {}
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'Withdrawal request failed')
+      setMessage({ type: 'error', text: err.response?.data?.error ?? 'Withdrawal failed' })
     } finally { setLoading(false) }
   }
-
-  if (success) return (
-    <Layout>
-      <div style={{ maxWidth: 480, margin: '60px auto', textAlign: 'center', padding: 24 }}>
-        <div style={{ fontSize: 64, marginBottom: 16 }}>✅</div>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, marginBottom: 8 }}>Withdrawal Requested!</div>
-        <div style={{ color: 'var(--text-muted)', marginBottom: 20 }}>
-          ₹{amount} withdrawal is being processed. Funds arrive within 30 minutes via {method.toUpperCase()}.
-        </div>
-        <button onClick={() => { setSuccess(false); setAmount('') }} style={{ background: 'var(--accent)', color: '#000', padding: '12px 24px', borderRadius: 'var(--radius)', fontFamily: 'var(--font-display)', fontWeight: 700, cursor: 'pointer' }}>
-          DONE
-        </button>
-      </div>
-    </Layout>
-  )
 
   return (
     <Layout>
       <Head><title>Withdraw — BetPro</title></Head>
-      <div style={{ maxWidth: 560, margin: '32px auto', padding: '0 16px' }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, marginBottom: 24 }}>WITHDRAW FUNDS</div>
+      <div style={{ padding: '24px', maxWidth: 520, margin: '0 auto' }} className="fade-up">
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, marginBottom: 8 }}>
+          ⬆️ WITHDRAW FUNDS
+        </div>
 
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
-          {/* Balance */}
-          <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 20, display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Available Balance</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent)', fontSize: 16 }}>₹{balance.toLocaleString('en-IN')}</span>
+        {/* Balance display */}
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: 24,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' as const }}>
+            Available Balance
+          </span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 22, color: 'var(--accent)' }}>
+            ₹{balance?.toLocaleString('en-IN') ?? '0'}
+          </span>
+        </div>
+
+        {message && (
+          <div style={{
+            padding: '12px 16px', borderRadius: 'var(--radius)', marginBottom: 16,
+            background: message.type === 'success' ? 'rgba(0,212,170,0.1)' : 'rgba(224,63,63,0.1)',
+            color: message.type === 'success' ? 'var(--accent)' : 'var(--live-red)',
+            border: `1px solid ${message.type === 'success' ? 'var(--accent-dim)' : 'var(--live-red)'}`,
+            fontSize: 13,
+          }}>{message.text}</div>
+        )}
+
+        <form onSubmit={handleWithdraw} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <label style={labelStyle}>Amount (₹)</label>
+            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+              placeholder="Enter amount" min="100" style={inputStyle} />
           </div>
 
-          {/* Method */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: 0.8, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Withdrawal Method</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {['upi', 'bank', 'usdt'].map(m => (
-                <button key={m} onClick={() => setMethod(m)} style={{
-                  flex: 1, padding: '10px', background: method === m ? 'rgba(0,212,170,0.1)' : 'var(--bg-elevated)',
-                  border: `1px solid ${method === m ? 'var(--accent)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius)', color: method === m ? 'var(--accent)' : 'var(--text-secondary)',
-                  fontWeight: 700, fontSize: 12, cursor: 'pointer', textTransform: 'uppercase',
-                }}>{m === 'usdt' ? '₿ Crypto' : m === 'upi' ? '🔵 UPI' : '🏦 Bank'}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* Account details */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: 0.8, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-              {method === 'upi' ? 'UPI ID' : method === 'usdt' ? 'Wallet Address' : 'Bank Account / IFSC'}
-            </label>
-            <input
-              type="text" value={account} onChange={e => setAccount(e.target.value)}
-              placeholder={method === 'upi' ? 'yourname@upi' : method === 'usdt' ? '0x...' : 'Account No • IFSC'}
-              style={{ width: '100%', background: 'var(--bg-elevated)', border: '1px solid var(--border-bright)', borderRadius: 'var(--radius)', padding: '10px 14px', color: 'var(--text-primary)', fontSize: 14 }}
-            />
-          </div>
-
-          {/* Amount */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: 0.8, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Amount (₹)</label>
-            <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16, color: 'var(--text-muted)' }}>₹</span>
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Min ₹500"
-                style={{ width: '100%', background: 'var(--bg-elevated)', border: '1px solid var(--border-bright)', borderRadius: 'var(--radius)', padding: '12px 14px 12px 34px', color: 'var(--text-primary)', fontSize: 18, fontFamily: 'var(--font-mono)' }} />
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-              {[500, 1000, 5000, 10000].map(a => (
-                <button key={a} onClick={() => setAmount(String(Math.min(a, balance)))} style={{ padding: '5px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  ₹{a >= 1000 ? `${a/1000}K` : a}
+          <div>
+            <label style={labelStyle}>Withdrawal Method</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[
+                { id: 'upi', label: 'UPI', icon: '📱' },
+                { id: 'bank', label: 'Bank Transfer', icon: '🏦' },
+              ].map(pm => (
+                <button key={pm.id} type="button" onClick={() => setMethod(pm.id)} style={{
+                  background: method === pm.id ? 'var(--accent-glow)' : 'var(--bg-card)',
+                  border: `1px solid ${method === pm.id ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius)', padding: '14px',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  fontSize: 14, fontWeight: 600,
+                  color: method === pm.id ? 'var(--accent)' : 'var(--text-secondary)',
+                }}>
+                  <span style={{ fontSize: 20 }}>{pm.icon}</span>{pm.label}
                 </button>
               ))}
-              <button onClick={() => setAmount(String(balance))} style={{ padding: '5px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--accent)', cursor: 'pointer', fontWeight: 700 }}>MAX</button>
             </div>
           </div>
 
-          {error && <div style={{ background: 'rgba(224,63,63,0.1)', border: '1px solid rgba(224,63,63,0.4)', borderRadius: 6, padding: '10px 14px', color: 'var(--live-red)', fontSize: 13, marginBottom: 16 }}>{error}</div>}
+          {method === 'upi' && (
+            <div>
+              <label style={labelStyle}>UPI ID</label>
+              <input type="text" value={upiId} onChange={e => setUpiId(e.target.value)}
+                placeholder="yourname@upi" style={inputStyle} />
+            </div>
+          )}
 
-          <button onClick={handleWithdraw} disabled={loading || !amount || !account} style={{
-            width: '100%', padding: '13px', background: (!amount || !account) ? 'var(--bg-elevated)' : 'var(--accent)',
-            color: (!amount || !account) ? 'var(--text-muted)' : '#000',
-            borderRadius: 'var(--radius)', border: 'none', fontFamily: 'var(--font-display)',
-            fontWeight: 800, fontSize: 15, letterSpacing: 0.5, cursor: 'pointer',
+          <button type="submit" disabled={loading} style={{
+            padding: '14px',
+            background: loading ? 'var(--bg-elevated)' : 'var(--accent)',
+            color: loading ? 'var(--text-muted)' : '#000',
+            borderRadius: 'var(--radius)',
+            fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, letterSpacing: 0.5,
           }}>
-            {loading ? 'PROCESSING...' : `WITHDRAW ₹${amount || '0'}`}
+            {loading ? 'Processing...' : 'WITHDRAW'}
           </button>
-          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-            ⚡ Processing time: UPI/Crypto: 30 min • Bank: 1-4 hours • KYC required for amounts above ₹10,000
-          </div>
+        </form>
+
+        <div style={{ marginTop: 20, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+          Withdrawals are processed within 1-24 hours. Minimum withdrawal: ₹100.
+          KYC verification may be required for amounts above ₹10,000.
         </div>
       </div>
     </Layout>
   )
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: 0.8,
+  color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8,
+}
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border-bright)',
+  borderRadius: 'var(--radius)', padding: '12px 14px', color: 'var(--text-primary)',
+  fontSize: 16, fontFamily: 'var(--font-mono)', fontWeight: 600, outline: 'none',
 }

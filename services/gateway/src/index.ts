@@ -57,6 +57,11 @@ async function bootstrap() {
     prefix: '/api/markets',
     rewritePrefix: '/api/markets',
   })
+  await app.register(httpProxy, {
+    upstream: SERVICES.market,
+    prefix: '/api/cricket',
+    rewritePrefix: '/api/cricket',
+  })
 
   // ── Authenticated routes ──
   await app.register(httpProxy, {

@@ -1,14 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  /* Core palette */
+  /* ── Core Palette ── */
   --bg-base:        #0a0c0f;
   --bg-surface:     #111418;
   --bg-card:        #181c22;
   --bg-card-hover:  #1e232b;
   --bg-elevated:    #232830;
 
-  /* Brand */
+  /* ── Brand ── */
   --accent:         #00d4aa;
   --accent-dim:     #00a882;
   --accent-glow:    rgba(0,212,170,0.15);
@@ -17,28 +17,28 @@
   --live-red:       #e03f3f;
   --live-pulse:     rgba(224,63,63,0.6);
 
-  /* Text */
+  /* ── Text ── */
   --text-primary:   #f0f2f5;
   --text-secondary: #8b95a2;
   --text-muted:     #4a5568;
   --text-accent:    #00d4aa;
 
-  /* Borders */
+  /* ── Borders ── */
   --border:         #252b34;
   --border-bright:  #2e3540;
 
-  /* Odds */
+  /* ── Odds ── */
   --odds-bg:        #1a2035;
   --odds-hover:     #1e2d4a;
   --odds-selected:  #00d4aa;
   --odds-selected-text: #000;
 
-  /* Fonts */
+  /* ── Fonts ── */
   --font-display:   'Barlow Condensed', sans-serif;
   --font-body:      'Barlow', sans-serif;
   --font-mono:      'JetBrains Mono', monospace;
 
-  /* Layout */
+  /* ── Layout ── */
   --nav-height:     56px;
   --sidebar-width:  240px;
   --radius:         6px;
@@ -47,7 +47,6 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { scroll-behavior: smooth; }
 
 body {
@@ -64,16 +63,16 @@ a { color: inherit; text-decoration: none; }
 button { cursor: pointer; border: none; font-family: var(--font-body); }
 input, select, textarea { font-family: var(--font-body); }
 
-/* Scrollbar */
+/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--bg-surface); }
 ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* Utility */
+/* ── Utility ── */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
-/* Live dot */
+/* ── Live dot animation ── */
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.4; transform: scale(0.8); }
@@ -86,7 +85,7 @@ input, select, textarea { font-family: var(--font-body); }
   animation: pulse 1.4s ease-in-out infinite;
 }
 
-/* Odds flash */
+/* ── Odds flash animations ── */
 @keyframes odds-up {
   0%   { background: rgba(0,212,170,0.3); }
   100% { background: var(--odds-bg); }
@@ -98,9 +97,15 @@ input, select, textarea { font-family: var(--font-body); }
 .odds-up   { animation: odds-up   0.8s ease forwards; }
 .odds-down { animation: odds-down 0.8s ease forwards; }
 
-/* Page fade in */
+/* ── Page transitions ── */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .fade-up { animation: fadeUp 0.35s ease forwards; }
+
+/* ── Ticker scroll ── */
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}

@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { authenticate, requireRole } from '@sportsbook/auth-middleware'
-import db from '@sportsbook/db-client'
+import db from '../prisma'
 
 export default async function adminRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate)

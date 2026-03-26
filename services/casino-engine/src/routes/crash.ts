@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { authenticate } from '@sportsbook/auth-middleware'
 import { crashGameInstance } from '../games/crash/crashInstance'
-import db from '@sportsbook/db-client'
+import db from '../prisma'
 
 // Use the shared singleton — same instance the game loop uses
 const crashGame = crashGameInstance

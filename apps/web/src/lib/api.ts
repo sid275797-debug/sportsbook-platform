@@ -1,143 +1,151 @@
-import axios, { AxiosInstance } from 'axios'
+import axios from 'axios'
 
-const BASE = process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://localhost:4000'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'
 
-function createClient(): AxiosInstance {
-  const client = axios.create({ baseURL: BASE, timeout: 10_000 })
+const api = axios.create({
+  baseURL: API_BASE,
+  timeout: 15000,
+  headers: { 'Content-Type': 'application/json' },
+})
 
-  client.interceptors.request.use((config) => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('accessToken')
-      if (token) config.headers.Authorization = `Bearer ${token}`
+// ─── Request interceptor: attach JWT ──────────────────────────────────────────
+api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('accessToken')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
     }
-    return config
+  }
+  return config
+})
+
+// ─── Response interceptor: handle 401 refresh ─────────────────────────────────
+let isRefreshing = false
+let failedQueue: Array<{ resolve: (v: any) => void; reject: (e: any) => void }> = []
+
+function processQueue(error: any, token: string | null = null) {
+  failedQueue.forEach((p) => {
+    if (error) p.reject(error)
+    else p.resolve(token)
   })
+  failedQueue = []
+}
 
-  client.interceptors.response.use(
-    (r) => r,
-    async (err) => {
-      if (err.response?.status === 401 && typeof window !== 'undefined') {
-        const refreshToken = localStorage.getItem('refreshToken')
-        if (refreshToken) {
-          try {
-            const { data } = await axios.post(`${BASE}/api/auth/refresh`, { refreshToken })
-            localStorage.setItem('accessToken', data.data.accessToken)
-            localStorage.setItem('refreshToken', data.data.refreshToken)
-            err.config.headers.Authorization = `Bearer ${data.data.accessToken}`
-            return client.request(err.config)
-          } catch {
-            localStorage.clear()
-            window.location.href = '/login'
-          }
-        }
+api.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    const originalRequest = error.config
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return api(originalRequest)
+        })
       }
-      return Promise.reject(err)
+      originalRequest._retry = true
+      isRefreshing = true
+      try {
+        const refreshToken = localStorage.getItem('refreshToken')
+        if (!refreshToken) throw new Error('No refresh token')
+        const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken })
+        const newToken = data.data?.accessToken || data.accessToken
+        localStorage.setItem('accessToken', newToken)
+        if (data.data?.refreshToken || data.refreshToken) {
+          localStorage.setItem('refreshToken', data.data?.refreshToken || data.refreshToken)
+        }
+        processQueue(null, newToken)
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return api(originalRequest)
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        if (typeof window !== 'undefined') window.location.href = '/login'
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
     }
-  )
-  return client
-}
+    return Promise.reject(error)
+  }
+)
 
-const api = createClient()
-
-// ─── Auth ─────────────────────────────────────────────────────────────────────
+// ─── Auth API ─────────────────────────────────────────────────────────────────
 export const authApi = {
-  login:    (body: { email: string; password: string }) => api.post('/api/auth/login', body),
-  register: (body: { username: string; email: string; password: string; phone?: string; referralCode?: string }) =>
-    api.post('/api/auth/register', body),
-  me:       () => api.get('/api/auth/me'),
-  refresh:  (refreshToken: string) => api.post('/api/auth/refresh', { refreshToken }),
-  logout:   (refreshToken: string) => api.post('/api/auth/logout', { refreshToken }),
+  login: (data: { email: string; password: string }) =>
+    api.post('/auth/login', data),
+  register: (data: { username: string; email: string; password: string }) =>
+    api.post('/auth/register', data),
+  me: () => api.get('/auth/me'),
+  forgotPassword: (data: { email: string }) =>
+    api.post('/auth/forgot-password', data),
+  resetPassword: (data: { token: string; password: string }) =>
+    api.post('/auth/reset-password', data),
+  logout: () => api.post('/auth/logout'),
 }
 
-// ─── Fixtures ─────────────────────────────────────────────────────────────────
-export const fixturesApi = {
-  // GET /api/fixtures/live
-  live: (sport?: string) =>
-    api.get('/api/fixtures/live', { params: sport ? { sport } : undefined }),
-  // GET /api/fixtures/upcoming  (added to market-service)
-  upcoming: (params?: Record<string, any>) =>
-    api.get('/api/fixtures/upcoming', { params }),
-  // GET /api/fixtures/:id
-  byId: (id: string) => api.get(`/api/fixtures/${id}`),
-}
-
-// ─── Markets ──────────────────────────────────────────────────────────────────
-export const marketApi = {
-  market: (marketId: string) => api.get(`/api/markets/${marketId}`),
-  sports: () => api.get('/api/sports'),
-}
-
-// ─── Betting ──────────────────────────────────────────────────────────────────
-// POST /api/bets/place           → betting-engine bet.ts
-// GET  /api/history              → betting-engine historyRoutes /api/history
-// GET  /api/slips/:id            → betting-engine slipRoutes /api/slips
-// GET  /api/slips/active         → betting-engine slipRoutes /api/slips/active
-export const bettingApi = {
-  placeBet: (body: {
-    selections: Array<{ marketId: string; outcomeId: string; odds: number; stake: number }>
-    totalStake: number
-    currency?: string
-    type?: 'single' | 'accumulator'
-    acceptOddsChanges?: boolean
-  }) =>
-    api.post('/api/bets/place', {
-      currency: 'INR',
-      type: (body.selections?.length ?? 0) > 1 ? 'accumulator' : 'single',
-      acceptOddsChanges: false,
-      ...body,
-    }),
-  myBets: (page = 1, status?: string) =>
-    api.get('/api/history', { params: { page, limit: 20, ...(status ? { status } : {}) } }),
-  betById:     (id: string) => api.get(`/api/slips/${id}`),
-  activeSlips: ()           => api.get('/api/slips/active'),
-  cancelBet:   (id: string) => api.post(`/api/bets/${id}/cancel`),
-}
-
-// ─── Wallet ───────────────────────────────────────────────────────────────────
-// GET  /api/wallet/balance
-// POST /api/wallet/deposit/initiate
-// POST /api/wallet/withdrawal/request
-// GET  /api/wallet/transactions
+// ─── Wallet API ───────────────────────────────────────────────────────────────
 export const walletApi = {
-  balance: () => api.get('/api/wallet/balance'),
-  deposit: (body: { amount: number; provider?: string; currency?: string }) =>
-    api.post('/api/wallet/deposit/initiate', {
-      currency: 'INR',
-      provider: 'razorpay',
-      ...body,
-    }),
-  withdraw: (body: { amount: number; method?: string; upiId?: string; bankAccount?: string }) =>
-    api.post('/api/wallet/withdrawal/request', {
-      amount:  body.amount,
-      method:  body.method ?? 'upi',
-      upiId:   body.upiId ?? body.bankAccount,
-    }),
-  history: (page = 1, type?: string) =>
-    api.get('/api/wallet/transactions', { params: { page, limit: 20, ...(type ? { type } : {}) } }),
+  balance: () => api.get('/wallet/balance'),
+  deposit: (data: { amount: number; method: string }) =>
+    api.post('/wallet/deposit', data),
+  withdraw: (data: { amount: number; method: string; accountDetails?: any }) =>
+    api.post('/wallet/withdraw', data),
+  transactions: (params?: { page?: number; limit?: number }) =>
+    api.get('/wallet/transactions', { params }),
 }
 
-// ─── Casino ───────────────────────────────────────────────────────────────────
-// GET  /api/casino/crash/history
-// GET  /api/casino/crash/current
-// POST /api/casino/crash/bet          { stake, roundId }
-// POST /api/casino/crash/cashout      { roundId }
-// POST /api/casino/dice/roll          { betAmount, target, rollOver, clientSeed }
-// POST /api/casino/roulette/spin      { bets: [{ betType, amount, numbers }] }
+// ─── Betting API ──────────────────────────────────────────────────────────────
+export const bettingApi = {
+  placeBet: (data: {
+    selections: Array<{
+      marketId: string
+      outcomeId: string
+      odds: number
+      stake: number
+    }>
+    totalStake: number
+    currency: string
+    type: 'single' | 'accumulator'
+    acceptOddsChanges: boolean
+  }) => api.post('/bets/place', data),
+  myBets: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get('/bets/my-bets', { params }),
+  betDetail: (id: string) => api.get(`/bets/${id}`),
+}
+
+// ─── Fixtures API ─────────────────────────────────────────────────────────────
+export const fixturesApi = {
+  upcoming: (params?: { sport?: string; limit?: number }) =>
+    api.get('/fixtures/upcoming', { params }),
+  live: () => api.get('/fixtures/live'),
+  detail: (id: string) => api.get(`/fixtures/${id}`),
+  markets: (id: string) => api.get(`/fixtures/${id}/markets`),
+}
+
+// ─── Cricket API ──────────────────────────────────────────────────────────────
+export const cricketApi = {
+  iplFixtures: () => api.get('/cricket/ipl/fixtures'),
+  iplSchedule: () => api.get('/cricket/ipl/schedule'),
+  iplPointsTable: () => api.get('/cricket/ipl/points-table'),
+  matchMarkets: (id: string) => api.get(`/cricket/match/${id}/markets`),
+  liveScores: () => api.get('/cricket/live'),
+  matchDetail: (id: string) => api.get(`/cricket/match/${id}`),
+  matchScorecard: (id: string) => api.get(`/cricket/match/${id}/scorecard`),
+}
+
+// ─── Casino API ───────────────────────────────────────────────────────────────
 export const casinoApi = {
-  crashHistory: () => api.get('/api/casino/crash/history'),
-  crashCurrent: () => api.get('/api/casino/crash/current'),
-  crashBet:     (body: { stake: number; roundId: string }) =>
-    api.post('/api/casino/crash/bet', body),
-  crashCashout: (body: { roundId: string }) =>
-    api.post('/api/casino/crash/cashout', body),
-  // rollOver matches backend field name (was incorrectly isOver in old code)
-  diceRoll: (body: { betAmount: number; target: number; rollOver: boolean; clientSeed?: string }) =>
-    api.post('/api/casino/dice/roll', {
-      clientSeed: Math.random().toString(36).slice(2),
-      ...body,
-    }),
-  rouletteSpin: (body: { bets: Array<{ betType: string; amount: number; numbers: number[] }> }) =>
-    api.post('/api/casino/roulette/spin', body),
+  crashBet: (data: { amount: number; autoCashout?: number }) =>
+    api.post('/casino/crash/bet', data),
+  crashCashout: (roundId: string) =>
+    api.post('/casino/crash/cashout', { roundId }),
+  crashHistory: () => api.get('/casino/crash/history'),
+  diceBet: (data: { amount: number; target: number; direction: 'over' | 'under' }) =>
+    api.post('/casino/dice/bet', data),
+  diceHistory: () => api.get('/casino/dice/history'),
 }
 
 export default api

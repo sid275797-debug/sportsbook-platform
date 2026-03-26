@@ -19,8 +19,7 @@ declare module 'fastify' {
 export function signToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
   const secret = process.env.JWT_SECRET
   if (!secret) throw new Error('JWT_SECRET is not set')
-  // Cast to 'any' to avoid jsonwebtoken v9 StringValue type conflict
-  return jwt.sign(payload as object, secret, { expiresIn: '7d' } as any)
+  return jwt.sign(payload as object, secret, { expiresIn: '1h' } as any)
 }
 
 export function signRefreshToken(userId: string): string {
@@ -44,21 +43,31 @@ export function verifyRefreshToken(token: string): { userId: string } {
 export async function authenticate(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const auth = req.headers.authorization
   if (!auth?.startsWith('Bearer ')) {
-    await reply.status(401).send({ success: false, error: 'Unauthorized' })
+    reply.status(401).send({ success: false, error: 'Unauthorized' })
     return
   }
   try {
     const token = auth.slice(7)
     req.user = verifyToken(token)
   } catch {
-    await reply.status(401).send({ success: false, error: 'Invalid or expired token' })
+    reply.status(401).send({ success: false, error: 'Invalid or expired token' })
+    return
   }
 }
 
 export function requireRole(...roles: UserRole[]) {
   return async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
     if (!req.user || !roles.includes(req.user.role)) {
-      await reply.status(403).send({ success: false, error: 'Forbidden' })
+      reply.status(403).send({ success: false, error: 'Forbidden' })
+      return
     }
+  }
+}
+
+export async function authenticateInternal(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const secret = req.headers['x-internal-secret'] as string
+  if (!secret || secret !== process.env.INTERNAL_API_SECRET) {
+    reply.status(403).send({ success: false, error: 'Forbidden: invalid internal secret' })
+    return
   }
 }

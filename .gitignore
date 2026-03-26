@@ -23,3 +23,21 @@ node_modules/
 dist/ 
 *.env 
 .env 
+# temp / scripts
+*.zip
+*.ps1
+*.bat
+*.md
+
+# local scripts
+apply-all-fixes.js
+convert-references.js
+hotfix-runtime.js
+phase*.js
+
+# folders
+stitch_*
+jobs/
+
+# logs
+*.log

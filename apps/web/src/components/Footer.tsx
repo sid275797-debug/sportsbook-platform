@@ -71,18 +71,15 @@ export default function Footer() {
           <div key={section.title}>
             <div style={{
               fontSize: 11, fontWeight: 800, letterSpacing: 1.2,
-              color: 'var(--text-secondary)', textTransform: 'uppercase',
+              color: 'var(--text-secondary)', textTransform: 'uppercase' as const,
               marginBottom: 14,
             }}>{section.title}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
               {section.links.map(link => (
-                <Link key={link.href} href={link.href} style={{
+                <Link key={link.label + link.href} href={link.href} style={{
                   fontSize: 13, color: 'var(--text-muted)',
                   transition: 'color 0.15s',
-                }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-                >
+                }}>
                   {link.label}
                 </Link>
               ))}
@@ -94,10 +91,10 @@ export default function Footer() {
       {/* Payment methods */}
       <div style={{ borderTop: '1px solid var(--border)', padding: '20px 40px' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' as const }}>
             Payment Methods
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
             {['UPI', 'PhonePe', 'Google Pay', 'Paytm', 'Net Banking', 'IMPS', 'NEFT', 'Bitcoin', 'USDT', 'ETH'].map(m => (
               <span key={m} style={{
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -118,7 +115,7 @@ export default function Footer() {
         <div style={{
           maxWidth: 1400, margin: '0 auto',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 16, flexWrap: 'wrap',
+          gap: 16, flexWrap: 'wrap' as const,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
@@ -131,7 +128,6 @@ export default function Footer() {
               © 2026 BetPro. All rights reserved.
             </span>
           </div>
-
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <span style={{
               background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -142,14 +138,8 @@ export default function Footer() {
               background: 'var(--bg-card)', border: '1px solid var(--border)',
               borderRadius: 4, padding: '4px 10px', fontSize: 11,
               color: 'var(--accent)', fontWeight: 700,
-            }}>🔐 Provably Fair</span>
-            <span style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 4, padding: '4px 10px', fontSize: 11,
-              color: 'var(--text-secondary)',
-            }}>⚡ Instant Payouts</span>
+            }}>Provably Fair</span>
           </div>
-
           <div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 400, lineHeight: 1.5 }}>
             Gambling can be addictive. Play responsibly. BetPro supports responsible gambling.
           </div>

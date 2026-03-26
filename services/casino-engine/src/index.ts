@@ -3,7 +3,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import websocket from '@fastify/websocket'
 import { logger } from '@sportsbook/logger'
-import { connectDb } from '@sportsbook/db-client'
+import db from './prisma'
 import { getRedis } from '@sportsbook/redis-client'
 import { crashGameInstance } from './games/crash/crashInstance'
 import crashRoutes from './routes/crash'
@@ -25,7 +25,7 @@ async function bootstrap() {
   app.get('/ws', { websocket: true }, wsHandler)
   app.get('/health', async () => ({ status: 'ok', service: 'casino-engine' }))
 
-  await connectDb()
+  await db.$connect()
   await getRedis().connect()
 
   // Start crash game loop using shared singleton

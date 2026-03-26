@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import db from '@sportsbook/db-client'
+import db from '../prisma'
 import { deleteCache, CacheKeys } from '@sportsbook/redis-client'
 
 const updateSchema = z.object({

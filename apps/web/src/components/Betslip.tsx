@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
 import { useBetslipStore } from '../store'
-import { bettingApi } from '../lib/api'
+import { useAuthStore } from '../store'
+import { bettingApi, walletApi } from '../lib/api'
 
 export default function Betslip() {
   const { selections, removeSelection, clearAll } = useBetslipStore()
+  const { user, setBalance } = useAuthStore()
   const [stakes, setStakes] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -19,6 +21,11 @@ export default function Betslip() {
   }, 0)
 
   async function placeBet() {
+    if (!user) {
+      setMessage({ type: 'error', text: 'Please log in to place bets' })
+      return
+    }
+
     const validBets = selections.map(s => ({
       marketId:  s.marketId,
       outcomeId: s.outcomeId,
@@ -29,9 +36,9 @@ export default function Betslip() {
     if (validBets.length === 0) return
 
     const totalStake = validBets.reduce((sum, b) => sum + b.stake, 0)
-
     setLoading(true)
     setMessage(null)
+
     try {
       await bettingApi.placeBet({
         selections:  validBets,
@@ -43,6 +50,11 @@ export default function Betslip() {
       setMessage({ type: 'success', text: 'Bet placed successfully!' })
       clearAll()
       setStakes({})
+      // Refresh balance
+      try {
+        const bal = await walletApi.balance()
+        setBalance(bal.data.data?.available ?? bal.data.available ?? 0)
+      } catch {}
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.error ?? 'Failed to place bet' })
     } finally {
@@ -180,6 +192,7 @@ export default function Betslip() {
                       padding: '6px 8px 6px 22px',
                       color: 'var(--text-primary)',
                       fontSize: 13,
+                      outline: 'none',
                     }}
                   />
                 </div>

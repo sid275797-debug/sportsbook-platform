@@ -2,47 +2,58 @@ import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useAuthStore } from '../store'
+import { walletApi } from '../lib/api'
 import Footer from './Footer'
 import LiveTicker from './LiveTicker'
 
 const NAV_SPORTS = [
-  { icon: '🏏', label: 'Cricket',        slug: 'cricket' },
-  { icon: '⚽', label: 'Football',       slug: 'football' },
-  { icon: '🎾', label: 'Tennis',         slug: 'tennis' },
-  { icon: '🏀', label: 'Basketball',     slug: 'basketball' },
-  { icon: '🤼', label: 'Kabaddi',        slug: 'kabaddi' },
-  { icon: '🏐', label: 'Volleyball',     slug: 'volleyball' },
-  { icon: '🏓', label: 'Table Tennis',   slug: 'table_tennis' },
-  { icon: '🐎', label: 'Horse Racing',   slug: 'horse_racing' },
+  { icon: '🏏', label: 'Cricket',      slug: 'cricket' },
+  { icon: '⚽', label: 'Football',     slug: 'football' },
+  { icon: '🎾', label: 'Tennis',       slug: 'tennis' },
+  { icon: '🏀', label: 'Basketball',   slug: 'basketball' },
+  { icon: '🤼', label: 'Kabaddi',      slug: 'kabaddi' },
+  { icon: '🏐', label: 'Volleyball',   slug: 'volleyball' },
+  { icon: '🏓', label: 'Table Tennis', slug: 'table_tennis' },
+  { icon: '🐎', label: 'Horse Racing', slug: 'horse_racing' },
 ]
 
 const CASINO_GAMES = [
-  { icon: '🚀', label: 'Crash',        href: '/casino/crash' },
-  { icon: '🎲', label: 'Dice',         href: '/casino/dice' },
-  { icon: '🎡', label: 'Roulette',     href: '/casino/roulette' },
-  { icon: '🃏', label: 'Blackjack',    href: '/casino/blackjack' },
-  { icon: '📌', label: 'Plinko',       href: '/casino/plinko' },
-  { icon: '🎴', label: 'Andar Bahar',  href: '/casino/andar-bahar' },
-  { icon: '🎴', label: 'Teen Patti',   href: '/casino/teen-patti' },
-  { icon: '🎰', label: 'Baccarat',     href: '/casino/baccarat' },
+  { icon: '🚀', label: 'Crash',       href: '/casino/crash' },
+  { icon: '🎲', label: 'Dice',        href: '/casino/dice' },
+  { icon: '🎡', label: 'Roulette',    href: '/casino/roulette' },
+  { icon: '🃏', label: 'Blackjack',   href: '/casino/blackjack' },
+  { icon: '📌', label: 'Plinko',      href: '/casino/plinko' },
+  { icon: '🎴', label: 'Andar Bahar', href: '/casino/andar-bahar' },
+  { icon: '🎴', label: 'Teen Patti',  href: '/casino/teen-patti' },
+  { icon: '🎰', label: 'Baccarat',    href: '/casino/baccarat' },
 ]
 
 const CRICKET_LINKS = [
-  { icon: '🔴', label: 'Live Scores',  href: '/cricket/live' },
-  { icon: '🏆', label: 'IPL 2026',     href: '/cricket/ipl' },
+  { icon: '🔴', label: 'Live Scores', href: '/cricket/live' },
+  { icon: '🏆', label: 'IPL 2026',    href: '/cricket/ipl' },
   { icon: '🎯', label: 'Bet on Cricket', href: '/cricket/betting' },
 ]
 
-interface LayoutProps { children: React.ReactNode; hideSidebar?: boolean }
+interface LayoutProps {
+  children: React.ReactNode
+  hideSidebar?: boolean
+}
 
 export default function Layout({ children, hideSidebar = false }: LayoutProps) {
   const router = useRouter()
-  const { user, balance, logout } = useAuthStore()
+  const { user, balance, setBalance, logout } = useAuthStore()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   useEffect(() => { setUserMenuOpen(false) }, [router.pathname])
 
-  const isCricket = router.pathname.startsWith('/cricket')
+  // Refresh balance on mount if logged in
+  useEffect(() => {
+    if (user) {
+      walletApi.balance()
+        .then(r => setBalance(r.data.data?.available ?? r.data.available ?? 0))
+        .catch(() => {})
+    }
+  }, [user, setBalance])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -69,12 +80,12 @@ export default function Layout({ children, hideSidebar = false }: LayoutProps) {
         {/* Nav tabs */}
         <div style={{ display: 'flex', gap: 0, flex: 1, overflowX: 'auto' }}>
           {[
-            { href: '/',                  label: 'Home' },
-            { href: '/sportsbook',        label: '⚽ Sports' },
-            { href: '/cricket/live',      label: '🏏 Cricket' },
-            { href: '/cricket/ipl',       label: '🏆 IPL' },
-            { href: '/casino',            label: '🎰 Casino' },
-            { href: '/promotions',        label: '🎁 Promos' },
+            { href: '/',             label: 'Home' },
+            { href: '/sportsbook',   label: '⚽ Sports' },
+            { href: '/cricket/live', label: '🏏 Cricket' },
+            { href: '/cricket/ipl',  label: '🏆 IPL' },
+            { href: '/casino',       label: '🎰 Casino' },
+            { href: '/promotions',   label: '🎁 Promos' },
           ].map(({ href, label }) => {
             const active = router.pathname === href || (href !== '/' && router.pathname.startsWith(href))
             return (
@@ -109,7 +120,6 @@ export default function Layout({ children, hideSidebar = false }: LayoutProps) {
                 padding: '7px 14px', borderRadius: 'var(--radius)',
                 fontWeight: 700, fontSize: 12, fontFamily: 'var(--font-display)', letterSpacing: 0.5,
               }}>+ DEPOSIT</Link>
-
               {/* User menu */}
               <div style={{ position: 'relative' }}>
                 <button
@@ -120,7 +130,6 @@ export default function Layout({ children, hideSidebar = false }: LayoutProps) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontWeight: 700, fontSize: 13, color: 'var(--text-primary)', cursor: 'pointer',
                   }}>{user.username?.[0]?.toUpperCase() ?? 'U'}</button>
-
                 {userMenuOpen && (
                   <div style={{
                     position: 'absolute', right: 0, top: 40,
@@ -133,24 +142,20 @@ export default function Layout({ children, hideSidebar = false }: LayoutProps) {
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user.email}</div>
                     </div>
                     {[
-                      { label: '👤 My Account',  href: '/dashboard' },
-                      { label: '🎯 My Bets',     href: '/bets' },
-                      { label: '💰 Deposit',     href: '/wallet/deposit' },
-                      { label: '⬆️ Withdraw',   href: '/wallet/withdraw' },
+                      { label: '👤 My Account', href: '/dashboard' },
+                      { label: '🎯 My Bets',    href: '/bets' },
+                      { label: '💰 Deposit',    href: '/wallet/deposit' },
+                      { label: '⬆️ Withdraw',  href: '/wallet/withdraw' },
                     ].map(item => (
                       <Link key={item.href} href={item.href} style={{
                         display: 'block', padding: '10px 16px',
                         fontSize: 13, color: 'var(--text-secondary)',
                         borderBottom: '1px solid var(--border)',
-                        transition: 'background 0.15s',
-                      }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                      >{item.label}</Link>
+                      }}>{item.label}</Link>
                     ))}
                     <button onClick={logout} style={{
                       display: 'block', width: '100%', padding: '10px 16px',
-                      background: 'none', border: 'none', textAlign: 'left',
+                      background: 'none', border: 'none', textAlign: 'left' as const,
                       fontSize: 13, color: 'var(--live-red)', cursor: 'pointer',
                     }}>🚪 Log Out</button>
                   </div>
@@ -190,7 +195,6 @@ export default function Layout({ children, hideSidebar = false }: LayoutProps) {
             overflowY: 'auto',
             flexShrink: 0,
           }}>
-            {/* Live count */}
             <Link href="/sportsbook?live=true" style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px',
               background: 'rgba(224,63,63,0.08)', borderBottom: '1px solid rgba(224,63,63,0.2)',
@@ -199,9 +203,9 @@ export default function Layout({ children, hideSidebar = false }: LayoutProps) {
               <span className="live-dot" /> LIVE NOW
             </Link>
 
-            {/* Cricket section */}
+            {/* Cricket */}
             <div style={{ padding: '10px 0' }}>
-              <div style={{ padding: '6px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' }}>🏏 Cricket</div>
+              <div style={{ padding: '6px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>🏏 Cricket</div>
               {CRICKET_LINKS.map(c => (
                 <Link key={c.href} href={c.href} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
@@ -209,18 +213,16 @@ export default function Layout({ children, hideSidebar = false }: LayoutProps) {
                   color: router.pathname === c.href ? 'var(--accent)' : 'var(--text-secondary)',
                   background: router.pathname === c.href ? 'var(--accent-glow)' : 'transparent',
                   borderLeft: router.pathname === c.href ? '2px solid var(--accent)' : '2px solid transparent',
-                  transition: 'all 0.15s',
                 }}>
                   <span>{c.icon}</span>{c.label}
                 </Link>
               ))}
             </div>
-
             <div style={{ height: 1, background: 'var(--border)' }} />
 
             {/* All Sports */}
             <div style={{ padding: '10px 0' }}>
-              <div style={{ padding: '6px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' }}>All Sports</div>
+              <div style={{ padding: '6px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>All Sports</div>
               {NAV_SPORTS.map(s => (
                 <Link key={s.slug} href={`/sportsbook?sport=${s.slug}`} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
@@ -228,18 +230,16 @@ export default function Layout({ children, hideSidebar = false }: LayoutProps) {
                   color: router.query.sport === s.slug ? 'var(--accent)' : 'var(--text-secondary)',
                   background: router.query.sport === s.slug ? 'var(--accent-glow)' : 'transparent',
                   borderLeft: router.query.sport === s.slug ? '2px solid var(--accent)' : '2px solid transparent',
-                  transition: 'all 0.15s',
                 }}>
                   <span>{s.icon}</span>{s.label}
                 </Link>
               ))}
             </div>
-
             <div style={{ height: 1, background: 'var(--border)' }} />
 
             {/* Casino */}
             <div style={{ padding: '10px 0' }}>
-              <div style={{ padding: '6px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Casino</div>
+              <div style={{ padding: '6px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Casino</div>
               {CASINO_GAMES.map(g => (
                 <Link key={g.href} href={g.href} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
@@ -247,28 +247,25 @@ export default function Layout({ children, hideSidebar = false }: LayoutProps) {
                   color: router.pathname === g.href ? 'var(--accent)' : 'var(--text-secondary)',
                   background: router.pathname === g.href ? 'var(--accent-glow)' : 'transparent',
                   borderLeft: router.pathname === g.href ? '2px solid var(--accent)' : '2px solid transparent',
-                  transition: 'all 0.15s',
                 }}>
                   <span>{g.icon}</span>{g.label}
                 </Link>
               ))}
             </div>
-
             <div style={{ height: 1, background: 'var(--border)' }} />
 
             {/* Account */}
             <div style={{ padding: '10px 0' }}>
-              <div style={{ padding: '6px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Account</div>
+              <div style={{ padding: '6px 16px', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Account</div>
               {[
-                { icon: '🎯', label: 'My Bets',     href: '/bets' },
-                { icon: '💰', label: 'Deposit',     href: '/wallet/deposit' },
-                { icon: '🎁', label: 'Promotions',  href: '/promotions' },
+                { icon: '🎯', label: 'My Bets',    href: '/bets' },
+                { icon: '💰', label: 'Deposit',    href: '/wallet/deposit' },
+                { icon: '🎁', label: 'Promotions', href: '/promotions' },
               ].map(item => (
                 <Link key={item.href} href={item.href} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '9px 16px', fontSize: 13, fontWeight: 500,
                   color: router.pathname === item.href ? 'var(--accent)' : 'var(--text-secondary)',
-                  transition: 'all 0.15s',
                 }}>
                   <span>{item.icon}</span>{item.label}
                 </Link>

@@ -19,7 +19,12 @@ export default function LiveTicker() {
 
   useEffect(() => {
     const load = () => {
-      fixturesApi.live().then(r => setFixtures(r.data.data ?? [])).catch(() => {})
+      fixturesApi.live()
+        .then(r => {
+          const data = r.data?.data ?? r.data ?? []
+          setFixtures(Array.isArray(data) ? data : [])
+        })
+        .catch(() => {})
     }
     load()
     const t = setInterval(load, 30_000)
@@ -37,7 +42,6 @@ export default function LiveTicker() {
       display: 'flex',
       alignItems: 'center',
     }}>
-      {/* LIVE label */}
       <div style={{
         background: 'var(--live-red)',
         color: '#fff',
@@ -56,7 +60,6 @@ export default function LiveTicker() {
         LIVE
       </div>
 
-      {/* Scrolling ticker */}
       <div style={{ overflow: 'hidden', flex: 1 }}>
         <div style={{
           display: 'flex',
@@ -92,20 +95,13 @@ export default function LiveTicker() {
               </span>
               {f.liveScore?.minute && (
                 <span style={{ color: 'var(--live-red)', fontSize: 10, fontWeight: 700 }}>
-                  {f.liveScore.minute}'
+                  {f.liveScore.minute}&apos;
                 </span>
               )}
             </Link>
           ))}
         </div>
       </div>
-
-      <style>{`
-        @keyframes ticker {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-      `}</style>
     </div>
   )
 }
